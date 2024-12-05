@@ -1737,14 +1737,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bbedcc5512a8f3e4b9df45bf61beb7c2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  rb: {fileID: 0}
-  targetPlayer: {fileID: 2120857536159335997, guid: 3b4e06c96a0e7fd479767f56fb251274, type: 3}
-  maxSpeed: 250
-  acceleration: 100
-  turnSpeed: 5
-  brakeForce: 3000
-  detectionRadius: 50
-  interceptionMultiplier: 1.5
+  maxMotorTorque: 2400
+  maxSteerAngle: 80
+  topSpeed: 400
+  brakeForce: 20000
+  reverseTorque: 2500
+  pursuitAggression: 35
+  turnSensitivity: 5
+  rotationDamping: 8
+  wheelFL: {fileID: 5861713799439883877}
+  wheelFR: {fileID: 4261829315393350941}
+  wheelRL: {fileID: 6508866826785865604}
+  wheelRR: {fileID: 2785065364908977022}
+  wheelFLTransform: {fileID: 2890847794676090898}
+  wheelFRTransform: {fileID: 2338125336014007010}
+  wheelRLTransform: {fileID: 4702938811795869711}
+  wheelRRTransform: {fileID: 3143692008285297972}
 --- !u!1 &5055905921227077295
 GameObject:
   m_ObjectHideFlags: 0

@@ -171,7 +171,7 @@ MonoBehaviour:
   policeCarPrefab: {fileID: 4936797912915402518, guid: 9250aee389d9ee24da94d9aeb8c9a2d2, type: 3}
   playerSpawnPoint: {fileID: 838864319}
   policeSpawnOffset: 20
-  safeSpeedLimit: 50
+  safeSpeedLimit: 400
 --- !u!1 &705507993
 GameObject:
   m_ObjectHideFlags: 0
