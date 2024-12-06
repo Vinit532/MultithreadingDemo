@@ -1,3 +1,4 @@
+using System.Threading;
 using UnityEngine;
 
 public class GameManager : MonoBehaviour
@@ -12,8 +13,15 @@ public class GameManager : MonoBehaviour
     public float safeSpeedLimit = 80f;    // Speed limit to trigger police spawn (in km/h)
 
     private GameObject playerCar;         // Instance of PlayerCar
+    private Rigidbody playerRb;           // Cached Rigidbody reference of PlayerCar
     private float nextPoliceSpawnTime = 0f; // Cooldown for spawning additional police cars
     private float policeSpawnInterval = 10f; // Time between police spawns
+
+    private bool isGameRunning = true;     // Flag to control the monitoring thread
+    private float playerSpeed;             // Thread-safe player speed (updated on the main thread)
+
+    private Thread speedMonitorThread;     // Separate thread for speed monitoring
+    private readonly object speedLock = new object(); // Lock for thread-safe access to `playerSpeed`
 
     private void Start()
     {
@@ -21,36 +29,76 @@ public class GameManager : MonoBehaviour
         if (playerCarPrefab && playerSpawnPoint)
         {
             playerCar = Instantiate(playerCarPrefab, playerSpawnPoint.position, playerSpawnPoint.rotation);
+            playerRb = playerCar.GetComponent<Rigidbody>(); // Cache Rigidbody reference on the main thread
         }
         else
         {
             Debug.LogError("PlayerCarPrefab or PlayerSpawnPoint is missing in GameManager.");
         }
+
+        // Start the monitoring thread
+        StartSpeedMonitorThread();
     }
 
     private void Update()
     {
-        if (playerCar != null)
+        if (playerRb != null)
         {
-            MonitorPlayerSpeed();
+            // Safely calculate speed on the main thread
+            float currentSpeed = playerRb.velocity.magnitude * 3.6f; // Speed in km/h
+
+            // Update the thread-safe variable
+            lock (speedLock)
+            {
+                playerSpeed = currentSpeed;
+            }
+
+            // Check if the speed exceeds the limit and spawn police on the main thread
+            if (playerSpeed > safeSpeedLimit && Time.time >= nextPoliceSpawnTime)
+            {
+                SpawnPoliceCar();
+                nextPoliceSpawnTime = Time.time + policeSpawnInterval; // Set cooldown for next spawn
+            }
         }
     }
 
-    private void MonitorPlayerSpeed()
+    private void OnDestroy()
     {
-        // Get the Rigidbody component of the PlayerCar
-        Rigidbody playerRb = playerCar.GetComponent<Rigidbody>();
-        if (playerRb == null) return;
-
-        // Calculate the player's speed in km/h
-        float playerSpeed = playerRb.velocity.magnitude * 3.6f;
-
-        // Check if PlayerCar exceeds the safe speed limit
-        if (playerSpeed > safeSpeedLimit && Time.time >= nextPoliceSpawnTime)
+        // Ensure the thread stops when the GameManager is destroyed
+        isGameRunning = false;
+        if (speedMonitorThread != null && speedMonitorThread.IsAlive)
         {
-            SpawnPoliceCar();
-            nextPoliceSpawnTime = Time.time + policeSpawnInterval; // Set cooldown for next spawn
+            speedMonitorThread.Join(); // Wait for the thread to finish
         }
+    }
+
+    private void StartSpeedMonitorThread()
+    {
+        speedMonitorThread = new Thread(() =>
+        {
+            while (isGameRunning)
+            {
+                // Access the speed in a thread-safe manner
+                float monitoredSpeed;
+
+                lock (speedLock)
+                {
+                    monitoredSpeed = playerSpeed; // Safely read the current speed
+                }
+
+                // Simulate processing the speed on the worker thread
+                if (monitoredSpeed > safeSpeedLimit)
+                {
+                    Debug.Log($"[Thread] Player is speeding! Current Speed: {monitoredSpeed} km/h");
+                }
+
+                // Add a small delay to prevent overloading the CPU
+                Thread.Sleep(50);
+            }
+        });
+
+        speedMonitorThread.IsBackground = true; // Make the thread stop with the application
+        speedMonitorThread.Start();
     }
 
     private void SpawnPoliceCar()
