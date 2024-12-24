@@ -21,51 +21,41 @@ public class PlayerCarController : MonoBehaviour
     public float maxSpeed = 200f;
     public float decelerationRate = 100f;
 
-    [Header("Audio Settings")]
-    public AudioSource engineSound;
-    public AudioClip reverseClip; // Reverse sound effect
-    public AudioClip turningClip; // Turning sound effect
-    public float maxPitch = 3f; // Pitch at max speed
-    public float minPitch = 1f; // Pitch at idle
-    public float maxVolume = 1f; // Volume at max speed
-    public float minVolume = 0.3f; // Volume at idle
+    [Header("Traction Settings")]
+    public float gripFactor = 2.0f; // Sideways friction multiplier for better grip
+    public float tractionControlThreshold = 10f; // Max allowable wheel slip
 
-    private AudioSource reverseSoundSource;
-    private AudioSource turningSoundSource;
+    [Header("Rigidbody Settings")]
+    public float mass = 1200f;
+    public float drag = 0.1f; // Small drag to naturally reduce speed
+    public Vector3 centerOfMass = new Vector3(0, -0.5f, 0);
 
     private Rigidbody rb;
     private float currentSpeed;
     private float currentSteerAngle;
 
-    private bool isReversing = false;
-    private bool isTurning = false;
+    private bool isBraking = false;
+
+    // Audio
+    private AudioSource engineSound;
 
     void Start()
     {
-        // Initialize Rigidbody
+        // Setup Rigidbody
         rb = GetComponent<Rigidbody>();
+        rb.mass = mass;
+        rb.drag = drag;
+        rb.centerOfMass = centerOfMass;
 
-        // Initialize Engine Sound
+        // Setup Audio
+        engineSound = GetComponent<AudioSource>();
         if (engineSound == null)
         {
-            Debug.LogError("Engine sound is not assigned!");
+            Debug.LogError("No AudioSource found on the car.");
         }
-        engineSound.loop = true;
-        engineSound.Play();
 
-        // Initialize Reverse Sound
-        reverseSoundSource = gameObject.AddComponent<AudioSource>();
-        reverseSoundSource.clip = reverseClip;
-        reverseSoundSource.loop = true;
-        reverseSoundSource.volume = 0f; // Start muted
-        reverseSoundSource.Play();
-
-        // Initialize Turning Sound
-        turningSoundSource = gameObject.AddComponent<AudioSource>();
-        turningSoundSource.clip = turningClip;
-        turningSoundSource.loop = true;
-        turningSoundSource.volume = 0f; // Start muted
-        turningSoundSource.Play();
+        // Initialize friction to prevent slipping
+        SetWheelFriction(gripFactor);
     }
 
     void Update()
@@ -76,7 +66,7 @@ public class PlayerCarController : MonoBehaviour
         UpdateWheelPositions(rearLeftWheel, rearLeftTransform);
         UpdateWheelPositions(rearRightWheel, rearRightTransform);
 
-        // Update audio based on car state
+        // Update engine sound
         UpdateEngineSound();
     }
 
@@ -85,18 +75,18 @@ public class PlayerCarController : MonoBehaviour
         HandleMotor();
         HandleSteering();
         HandleBraking();
+        ApplyTractionControl();
     }
 
     void HandleMotor()
     {
         float acceleration = Input.GetAxis("Vertical"); // W/S or Up/Down Arrow
+
         if (currentSpeed < maxSpeed)
         {
             float torque = motorForce * acceleration;
             rearLeftWheel.motorTorque = torque;
             rearRightWheel.motorTorque = torque;
-
-            isReversing = acceleration < 0; // Check if the car is reversing
         }
         else
         {
@@ -113,13 +103,11 @@ public class PlayerCarController : MonoBehaviour
         currentSteerAngle = steeringInput * 35f; // 35 degrees max steering angle
         frontLeftWheel.steerAngle = currentSteerAngle;
         frontRightWheel.steerAngle = currentSteerAngle;
-
-        isTurning = Mathf.Abs(steeringInput) > 0.1f; // Check if turning
     }
 
     void HandleBraking()
     {
-        bool isBraking = Input.GetKey(KeyCode.Space);
+        isBraking = Input.GetKey(KeyCode.Space);
 
         if (isBraking)
         {
@@ -144,18 +132,40 @@ public class PlayerCarController : MonoBehaviour
         }
     }
 
-    void UpdateEngineSound()
+    void ApplyTractionControl()
     {
-        // Update engine sound pitch and volume based on speed
-        float normalizedSpeed = Mathf.InverseLerp(0, maxSpeed, currentSpeed); // Normalized speed (0 to 1)
-        engineSound.pitch = Mathf.Lerp(minPitch, maxPitch, normalizedSpeed);
-        engineSound.volume = Mathf.Lerp(minVolume, maxVolume, normalizedSpeed);
+        // Limit torque to prevent wheel slipping
+        foreach (WheelCollider wheel in new[] { rearLeftWheel, rearRightWheel })
+        {
+            WheelHit hit;
+            if (wheel.GetGroundHit(out hit))
+            {
+                if (Mathf.Abs(hit.forwardSlip) > tractionControlThreshold)
+                {
+                    wheel.motorTorque *= 0.5f; // Reduce torque if wheels are slipping
+                }
+            }
+        }
+    }
 
-        // Update reverse sound
-        reverseSoundSource.volume = isReversing ? 1f : 0f;
+    void SetWheelFriction(float grip)
+    {
+        // Configure friction for all wheels
+        AdjustWheelFriction(frontLeftWheel, grip);
+        AdjustWheelFriction(frontRightWheel, grip);
+        AdjustWheelFriction(rearLeftWheel, grip);
+        AdjustWheelFriction(rearRightWheel, grip);
+    }
 
-        // Update turning sound
-        turningSoundSource.volume = isTurning ? 0.5f : 0f; // Play turning sound at half volume
+    void AdjustWheelFriction(WheelCollider wheel, float stiffness)
+    {
+        WheelFrictionCurve sidewaysFriction = wheel.sidewaysFriction;
+        sidewaysFriction.stiffness = stiffness;
+        wheel.sidewaysFriction = sidewaysFriction;
+
+        WheelFrictionCurve forwardFriction = wheel.forwardFriction;
+        forwardFriction.stiffness = stiffness;
+        wheel.forwardFriction = forwardFriction;
     }
 
     void UpdateWheelPositions(WheelCollider wheelCollider, Transform wheelTransform)
@@ -178,6 +188,18 @@ public class PlayerCarController : MonoBehaviour
                 currentSteerAngle,
                 0 // Lock Z-axis to 0
             );
+        }
+    }
+
+    void UpdateEngineSound()
+    {
+        if (engineSound != null)
+        {
+            engineSound.pitch = Mathf.Lerp(1f, 3f, currentSpeed / maxSpeed); // Dynamic pitch based on speed
+            if (!engineSound.isPlaying)
+            {
+                engineSound.Play();
+            }
         }
     }
 }
