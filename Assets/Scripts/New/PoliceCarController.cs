@@ -1,48 +1,72 @@
 using UnityEngine;
-using UnityEngine.AI;
 
 public class PoliceCarController : MonoBehaviour
 {
-    public Transform playerCar;
-    public float chaseSpeed = 15f;
-    public float pushForce = 500f;
+    public Transform playerCar; // Reference to the PlayerCar
+    public float maxSpeed = 250f; // PoliceCar is faster than PlayerCar
+    public float acceleration = 2000f;
+    public float stoppingDistance = 5f; // Distance at which PoliceCar interrupts PlayerCar
+    public float pushForce = 5000f; // Force to push PlayerCar
 
-    private NavMeshAgent agent;
+    // WheelColliders
+    public WheelCollider frontLeftWheel;
+    public WheelCollider frontRightWheel;
+    public WheelCollider rearLeftWheel;
+    public WheelCollider rearRightWheel;
+
+    // Rigidbody for physics-based movement
+    private Rigidbody rb;
+
+    private float currentSpeed;
 
     void Start()
     {
-        agent = GetComponent<NavMeshAgent>();
-        if (agent != null)
+        rb = GetComponent<Rigidbody>();
+        rb.mass = 1500f;
+        rb.centerOfMass = new Vector3(0, -0.5f, 0);
+    }
+
+    void FixedUpdate()
+    {
+        if (playerCar != null)
         {
-            agent.speed = chaseSpeed;
+            ChasePlayer();
         }
     }
 
-    void Update()
+    void ChasePlayer()
     {
-        if (agent != null && agent.isOnNavMesh) // Ensure the agent is active and on a NavMesh
+        Vector3 direction = (playerCar.position - transform.position).normalized;
+
+        // Steer towards PlayerCar
+        float targetSteerAngle = Vector3.SignedAngle(transform.forward, direction, Vector3.up);
+        frontLeftWheel.steerAngle = targetSteerAngle / 2; // Dividing to make turning smooth
+        frontRightWheel.steerAngle = targetSteerAngle / 2;
+
+        // Accelerate towards PlayerCar
+        currentSpeed = rb.velocity.magnitude * 3.6f; // Convert m/s to km/h
+        if (currentSpeed < maxSpeed)
         {
-            if (playerCar != null)
-            {
-                agent.SetDestination(playerCar.position); // Set destination to PlayerCar
-            }
+            rearLeftWheel.motorTorque = acceleration;
+            rearRightWheel.motorTorque = acceleration;
         }
-        else
+
+        // Check distance to stop PlayerCar
+        float distanceToPlayer = Vector3.Distance(transform.position, playerCar.position);
+        if (distanceToPlayer <= stoppingDistance)
         {
-            Debug.LogError("NavMeshAgent is not properly placed on a NavMesh!");
+            InterruptPlayer();
         }
     }
 
-    private void OnCollisionEnter(Collision collision)
+    void InterruptPlayer()
     {
-        if (collision.gameObject.CompareTag("PlayerCar"))
+        // Apply a push force to PlayerCar
+        Rigidbody playerRb = playerCar.GetComponent<Rigidbody>();
+        if (playerRb != null)
         {
-            Rigidbody playerRb = collision.gameObject.GetComponent<Rigidbody>();
-            if (playerRb != null)
-            {
-                Vector3 pushDirection = (collision.transform.position - transform.position).normalized;
-                playerRb.AddForce(pushDirection * pushForce, ForceMode.Impulse); // Push PlayerCar
-            }
+            Vector3 pushDirection = (playerCar.position - transform.position).normalized;
+            playerRb.AddForce(pushDirection * pushForce, ForceMode.Impulse);
         }
     }
 }

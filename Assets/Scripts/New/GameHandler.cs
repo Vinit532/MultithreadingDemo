@@ -1,48 +1,84 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using System.Collections;
+using System.Threading;
 
 public class GameHandler : MonoBehaviour
 {
-    public static GameHandler Instance;
+    public GameObject policeCarPrefab; // Reference to the PoliceCar prefab
+    public Transform playerCar; // Reference to the PlayerCar
+    public float spawnRadius = 50f; // Radius around PlayerCar to spawn PoliceCars
+    public float speedThreshold = 120f; // Speed limit to trigger PoliceCar spawn
+    public float spawnInterval = 20f; // Interval to spawn additional PoliceCars
 
-    public GameObject policeCarPrefab; // PoliceCar prefab
-    public Transform playerCar; // Reference to PlayerCar
-    public float respawnTime = 15f; // Time before respawning a new PoliceCar
+    private Rigidbody playerRb; // Rigidbody reference for PlayerCar
+    private bool isPoliceChasing = false;
 
-    private GameObject currentPoliceCar;
-
-    void Awake()
+    void Start()
     {
-        Instance = this;
+        // Cache PlayerCar's Rigidbody on the main thread
+        playerRb = playerCar.GetComponent<Rigidbody>();
+
+        // Start monitoring PlayerCar's speed on a separate thread
+        Thread monitorThread = new Thread(MonitorPlayerSpeed);
+        monitorThread.Start();
     }
 
-    public void TriggerPoliceSpawn(Vector3 spawnPosition)
+    void MonitorPlayerSpeed()
     {
-        if (currentPoliceCar == null)
+        while (true)
         {
-            SpawnPoliceCar(spawnPosition);
+            if (playerRb == null)
+            {
+                Debug.LogError("PlayerCar's Rigidbody is not assigned!");
+                return;
+            }
+
+            // Get PlayerCar's speed (This must be done on the main thread)
+            float playerSpeed = 0f;
+            UnityMainThreadDispatcher.Instance().Enqueue(() =>
+            {
+                playerSpeed = playerRb.velocity.magnitude * 3.6f; // Convert m/s to km/h
+            });
+
+            // Allow the thread to wait briefly for the result
+            Thread.Sleep(50); // Small delay to avoid excessive CPU usage
+
+            // Trigger police chase if speed exceeds the threshold
+            if (playerSpeed > speedThreshold && !isPoliceChasing)
+            {
+                isPoliceChasing = true;
+
+                // Spawn initial PoliceCar and start periodic spawning
+                UnityMainThreadDispatcher.Instance().Enqueue(() =>
+                {
+                    SpawnPoliceCar();
+                    StartCoroutine(SpawnAdditionalPoliceCars());
+                });
+            }
+
+            Thread.Sleep(100); // Check speed every 100ms
         }
     }
 
-    private void SpawnPoliceCar(Vector3 spawnPosition)
+    void SpawnPoliceCar()
     {
-        currentPoliceCar = Instantiate(policeCarPrefab, spawnPosition, Quaternion.identity);
-        PoliceCarController policeController = currentPoliceCar.GetComponent<PoliceCarController>();
+        Vector3 spawnPosition = playerCar.position + Random.insideUnitSphere * spawnRadius;
+        spawnPosition.y = playerCar.position.y; // Match height with PlayerCar
 
-        if (policeController != null)
+        GameObject newPoliceCar = Instantiate(policeCarPrefab, spawnPosition, Quaternion.identity);
+        PoliceCarController controller = newPoliceCar.GetComponent<PoliceCarController>();
+        if (controller != null)
         {
-            policeController.playerCar = playerCar; // Set PlayerCar as the target
+            controller.playerCar = playerCar; // Assign PlayerCar for chasing
         }
-
-        Invoke(nameof(CheckPoliceStatus), respawnTime);
     }
 
-    private void CheckPoliceStatus()
+    IEnumerator SpawnAdditionalPoliceCars()
     {
-        if (currentPoliceCar == null) // If police failed to catch the player
+        while (true)
         {
-            SpawnPoliceCar(playerCar.position); // Respawn near the PlayerCar
+            yield return new WaitForSeconds(spawnInterval);
+            SpawnPoliceCar();
         }
     }
 }

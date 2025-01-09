@@ -1489,8 +1489,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   playerCar: {fileID: 2303565799280812360, guid: fa2f41c5b7f91b4438d9f0288a330dc3, type: 3}
-  chaseSpeed: 400
+  maxSpeed: 250
+  acceleration: 2000
+  stoppingDistance: 5
   pushForce: 500
+  frontLeftWheel: {fileID: 4247214441794942590}
+  frontRightWheel: {fileID: 2855134979109818290}
+  rearLeftWheel: {fileID: 6767596403142136742}
+  rearRightWheel: {fileID: 2468133638377312181}
 --- !u!195 &7192685844044256817
 NavMeshAgent:
   m_ObjectHideFlags: 0

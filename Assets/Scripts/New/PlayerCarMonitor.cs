@@ -16,7 +16,7 @@ public class PlayerCarMonitor : MonoBehaviour
 
         if (currentSpeed > speedLimit)
         {
-            GameHandler.Instance.TriggerPoliceSpawn(transform.position); // Notify GameManager
+           // GameHandler.Instance.TriggerPoliceSpawn(transform.position); // Notify GameManager
         }
     }
 }
