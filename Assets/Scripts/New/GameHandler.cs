@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.AI; // Required for NavMesh operations
 using System.Collections;
 using System.Threading;
 using UnityEngine.AI; // Required for NavMesh operations
@@ -14,7 +13,6 @@ public class GameHandler : MonoBehaviour
 
     private Rigidbody playerRb; // Rigidbody reference for PlayerCar
     private bool isPoliceChasing = false;
-    private bool isGameRunning = true; // Flag to track if the game is running
 
     private bool isGameRunning = true; // Flag to track if the game is running
 
@@ -35,13 +33,6 @@ public class GameHandler : MonoBehaviour
         monitorThread.Start();
     }
 
-<<<<<<< Updated upstream
-=======
-    void OnApplicationQuit()
-    {
-        isGameRunning = false; // Indicate that the game is shutting down
-    }
->>>>>>> Stashed changes
 
     void MonitorPlayerSpeed()
     {
@@ -58,10 +49,7 @@ public class GameHandler : MonoBehaviour
             // Enqueue speed calculation to the main thread
             UnityMainThreadDispatcher.Instance().Enqueue(() =>
             {
-                if (playerRb != null) // Ensure Rigidbody still exists
-                {
-                    playerSpeed = playerRb.velocity.magnitude * 3.6f; // Convert m/s to km/h
-                }
+                playerSpeed = playerRb.velocity.magnitude * 3.6f; // Convert m/s to km/h
             });
 
             // Allow the thread to wait briefly for the result
@@ -89,7 +77,6 @@ public class GameHandler : MonoBehaviour
 
     void SpawnPoliceCar()
     {
-<<<<<<< Updated upstream
         // Generate a random position within the radius
         Vector3 randomPosition = playerCar.position + Random.insideUnitSphere * spawnRadius;
         randomPosition.y = playerCar.position.y; // Match height with PlayerCar
@@ -100,32 +87,6 @@ public class GameHandler : MonoBehaviour
         {
             // Spawn PoliceCar at the nearest valid position on the NavMesh
             GameObject newPoliceCar = Instantiate(policeCarPrefab, hit.position, Quaternion.identity);
-=======
-        const int maxAttempts = 10; // Maximum attempts to find a valid position
-        bool positionFound = false;
-        Vector3 spawnPosition = Vector3.zero;
-
-        for (int i = 0; i < maxAttempts; i++)
-        {
-            // Generate a random position within the spawn radius
-            Vector3 randomPosition = playerCar.position + Random.insideUnitSphere * spawnRadius;
-            randomPosition.y = playerCar.position.y; // Match height with PlayerCar
-
-            // Check if the position is valid on the NavMesh
-            NavMeshHit hit;
-            if (NavMesh.SamplePosition(randomPosition, out hit, spawnRadius, NavMesh.AllAreas))
-            {
-                spawnPosition = hit.position;
-                positionFound = true;
-                break; // Exit the loop as we found a valid position
-            }
-        }
-
-        if (positionFound)
-        {
-            // Spawn the PoliceCar at the valid position
-            GameObject newPoliceCar = Instantiate(policeCarPrefab, spawnPosition, Quaternion.identity);
->>>>>>> Stashed changes
             PoliceCarController controller = newPoliceCar.GetComponent<PoliceCarController>();
             if (controller != null)
             {
@@ -134,14 +95,9 @@ public class GameHandler : MonoBehaviour
         }
         else
         {
-<<<<<<< Updated upstream
             Debug.LogWarning("Failed to find a valid NavMesh position for the PoliceCar.");
-=======
-            Debug.LogWarning("Failed to find a valid NavMesh position for the PoliceCar after multiple attempts.");
->>>>>>> Stashed changes
         }
     }
-
 
     IEnumerator SpawnAdditionalPoliceCars()
     {
