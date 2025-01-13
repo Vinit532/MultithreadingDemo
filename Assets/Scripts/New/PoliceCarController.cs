@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 public class PoliceCarController : MonoBehaviour
@@ -18,17 +19,27 @@ public class PoliceCarController : MonoBehaviour
     private Rigidbody rb;
 
     private float currentSpeed;
+    private bool isReversing = false; // Track if the car is reversing
+    private bool isStuck = false; // Track if the car is stuck
+
+    private Vector3 lastPosition; // To check if the car is stuck
+    private float stuckCheckInterval = 2f; // Time interval to check for being stuck
+    private float stuckDistanceThreshold = 0.5f; // Threshold to determine if the car is stuck
 
     void Start()
     {
         rb = GetComponent<Rigidbody>();
         rb.mass = 1500f;
         rb.centerOfMass = new Vector3(0, -0.5f, 0);
+
+        // Initialize position tracking for stuck detection
+        lastPosition = transform.position;
+        InvokeRepeating(nameof(CheckIfStuck), stuckCheckInterval, stuckCheckInterval);
     }
 
     void FixedUpdate()
     {
-        if (playerCar != null)
+        if (playerCar != null && !isStuck)
         {
             ChasePlayer();
         }
@@ -57,6 +68,12 @@ public class PoliceCarController : MonoBehaviour
         {
             InterruptPlayer();
         }
+
+        // Check if the car needs to brake and reverse
+        if (IsDodged())
+        {
+            StartCoroutine(BrakeAndReverse());
+        }
     }
 
     void InterruptPlayer()
@@ -68,5 +85,82 @@ public class PoliceCarController : MonoBehaviour
             Vector3 pushDirection = (playerCar.position - transform.position).normalized;
             playerRb.AddForce(pushDirection * pushForce, ForceMode.Impulse);
         }
+    }
+
+    private bool IsDodged()
+    {
+        // Check if the car has been dodged by the PlayerCar
+        Vector3 toPlayer = (playerCar.position - transform.position).normalized;
+        float angle = Vector3.Angle(transform.forward, toPlayer);
+        return angle > 45f; // Dodged if angle is greater than 45 degrees
+    }
+
+    private IEnumerator BrakeAndReverse()
+    {
+        if (isReversing) yield break; // Prevent multiple reverses
+        isReversing = true;
+
+        rearLeftWheel.motorTorque = 0;
+        rearRightWheel.motorTorque = 0;
+
+        // Briefly apply brakes
+        rearLeftWheel.brakeTorque = 3000f;
+        rearRightWheel.brakeTorque = 3000f;
+        yield return new WaitForSeconds(0.5f);
+
+        // Release brakes and reverse
+        rearLeftWheel.brakeTorque = 0;
+        rearRightWheel.brakeTorque = 0;
+
+        rearLeftWheel.motorTorque = -acceleration;
+        rearRightWheel.motorTorque = -acceleration;
+        yield return new WaitForSeconds(1.5f); // Reverse for a short duration
+
+        // Stop reversing and resume chasing
+        rearLeftWheel.motorTorque = 0;
+        rearRightWheel.motorTorque = 0;
+        isReversing = false;
+    }
+
+    private void CheckIfStuck()
+    {
+        // Determine if the PoliceCar is stuck (not making forward progress)
+        float distanceMoved = Vector3.Distance(transform.position, lastPosition);
+        if (distanceMoved < stuckDistanceThreshold && !isStuck)
+        {
+            StartCoroutine(EscapeStuck());
+        }
+        else
+        {
+            lastPosition = transform.position;
+        }
+    }
+
+    private IEnumerator EscapeStuck()
+    {
+        isStuck = true;
+
+        // Stop current movement
+        rearLeftWheel.motorTorque = 0;
+        rearRightWheel.motorTorque = 0;
+
+        // Reverse slightly to escape
+        rearLeftWheel.motorTorque = -acceleration;
+        rearRightWheel.motorTorque = -acceleration;
+        yield return new WaitForSeconds(1.5f);
+
+        // Rotate in a random direction
+        float randomTurn = Random.Range(-30f, 30f);
+        frontLeftWheel.steerAngle = randomTurn;
+        frontRightWheel.steerAngle = randomTurn;
+        yield return new WaitForSeconds(1f);
+
+        // Resume chasing
+        frontLeftWheel.steerAngle = 0;
+        frontRightWheel.steerAngle = 0;
+        rearLeftWheel.motorTorque = acceleration;
+        rearRightWheel.motorTorque = acceleration;
+
+        isStuck = false;
     }
 }
