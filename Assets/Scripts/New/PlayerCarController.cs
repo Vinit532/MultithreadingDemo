@@ -30,6 +30,12 @@ public class PlayerCarController : MonoBehaviour
     public float drag = 0.1f; // Small drag to naturally reduce speed
     public Vector3 centerOfMass = new Vector3(0, -0.5f, 0);
 
+    [Header("Camera Settings")]
+    public Transform mainCamera; // Reference to the Main Camera
+    public Vector3 cameraPositionOffset = new Vector3(0, 1.45f, -5f); // Ideal position difference
+    public Vector3 cameraRotationOffset = new Vector3(4f, 0f, 0f); // Ideal rotation difference
+    public float cameraFollowSpeed = 5f; // Smoothness of camera movement
+
     private Rigidbody rb;
     private float currentSpeed;
     private float currentSteerAngle;
@@ -68,6 +74,9 @@ public class PlayerCarController : MonoBehaviour
 
         // Update engine sound
         UpdateEngineSound();
+
+        // Update camera position and rotation
+        UpdateCamera();
     }
 
     void FixedUpdate()
@@ -190,6 +199,24 @@ public class PlayerCarController : MonoBehaviour
             );
         }
     }
+
+    void UpdateCamera()
+    {
+        if (mainCamera == null) return;
+
+        // Calculate target position and rotation for the camera
+        Vector3 targetPosition = transform.position + transform.TransformDirection(cameraPositionOffset);
+        Quaternion targetRotation = Quaternion.Euler(transform.eulerAngles + cameraRotationOffset);
+
+        // Introduce a delay effect in following the car
+        float delayFactor = Mathf.Clamp(rb.velocity.magnitude / 10f, 0.5f, 2f); // Delay increases with car speed
+        float adjustedFollowSpeed = cameraFollowSpeed / delayFactor;
+
+        // Smoothly move and rotate the camera with the adjusted speed
+        mainCamera.position = Vector3.Lerp(mainCamera.position, targetPosition, adjustedFollowSpeed * Time.deltaTime);
+        mainCamera.rotation = Quaternion.Lerp(mainCamera.rotation, targetRotation, cameraFollowSpeed * Time.deltaTime);
+    }
+
 
     void UpdateEngineSound()
     {
